@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: secure-file-vault
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT "app:create_app()"
+    envVars:
+      - key: SECRET_KEY
+        sync: false
+      - key: MASTER_KEY
+        sync: false
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: secure-file-vault-data
+      mountPath: /var/data
+      sizeGB: 1

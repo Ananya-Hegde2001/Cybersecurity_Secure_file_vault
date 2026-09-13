@@ -3,3 +3,4 @@ Flask-WTF>=1.2
 cryptography>=42.0
 python-dotenv>=1.0
 Werkzeug>=3.0
+gunicorn>=23.0

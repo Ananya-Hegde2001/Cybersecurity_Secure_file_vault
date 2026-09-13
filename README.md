@@ -26,6 +26,21 @@ secure-file-vault/
 └── .env.example
 ```
 
+## Deploy on Render
+
+This repository includes a `render.yaml` blueprint for a Python web service.
+In Render, create a **Blueprint** from the repository and set the required
+environment variables when prompted:
+
+- `SECRET_KEY`: the first value printed by `python generate_keys.py`
+- `MASTER_KEY`: the second value printed by `python generate_keys.py`
+
+The blueprint runs Gunicorn and mounts a persistent disk at `/var/data` for
+the SQLite database and encrypted files. Keep a secure backup of both that
+disk and `MASTER_KEY`; losing either means the stored files cannot be
+recovered. The included disk is 1 GB, so increase `sizeGB` before deploying
+if the vault will hold more data.
+
 ## 1. Install prerequisites
 
 You need **Python 3.10+**. Check with:

@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.environ.get("DATA_DIR", BASE_DIR)
 
 
 class Config:
@@ -15,8 +16,8 @@ class Config:
     MASTER_KEY = os.environ.get("MASTER_KEY", "")
     KEY_ID = os.environ.get("KEY_ID", "master-v1")
 
-    DATABASE = os.path.join(BASE_DIR, "vault.db")
-    UPLOAD_FOLDER = os.path.join(BASE_DIR, "encrypted_files")
+    DATABASE = os.path.join(DATA_DIR, "vault.db")
+    UPLOAD_FOLDER = os.path.join(DATA_DIR, "encrypted_files")
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB max upload size
 
     # --- Session / login security ---
