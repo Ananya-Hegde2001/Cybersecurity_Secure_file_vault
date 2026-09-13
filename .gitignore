@@ -1,0 +1,8 @@
+.env
+vault.db
+encrypted_files/*
+!encrypted_files/.gitkeep
+__pycache__/
+*.pyc
+.venv/
+venv/

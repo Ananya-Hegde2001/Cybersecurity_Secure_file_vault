@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Secure File Vault{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('vault.dashboard') if session.get('user_id') else url_for('auth.login') }}">
+      <span class="brand-mark">SV</span>
+      <span>Secure Vault <small>ZERO TRUST STORAGE</small></span>
+    </a>
+    {% if session.get('user_id') %}
+    <nav>
+      <span class="status-pill"><i></i> SYSTEM ONLINE</span>
+      <a class="nav-link" href="{{ url_for('vault.dashboard') }}">Overview</a>
+      <a class="nav-link" href="{{ url_for('vault.audit_log') }}">Audit trail</a>
+      <a class="nav-link" href="{{ url_for('vault.profile') }}">Profile</a>
+      <a class="nav-link" href="{{ url_for('url_sentinel.url_sentinel') }}">URL Sentinel</a>
+      <span class="whoami">{{ session['username'] }}</span>
+      <a class="logout-link" href="{{ url_for('auth.logout') }}">Exit</a>
+    </nav>
+    {% endif %}
+  </header>
+
+  <main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flashes">
+          {% for category, message in messages %}
+            <li class="flash flash-{{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

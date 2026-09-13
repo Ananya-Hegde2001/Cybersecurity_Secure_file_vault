@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Share Unavailable | Secure Vault{% endblock %}
+{% block content %}
+<div class="card share-message">
+  <p class="eyebrow">SECURE SHARE / CLOSED</p>
+  <h1>Link unavailable<span>.</span></h1>
+  <p>{{ message or "This share has expired or has already been redeemed." }}</p>
+  <a class="primary-button share-back" href="{{ url_for('auth.login') }}">Return to secure vault</a>
+</div>
+{% endblock %}

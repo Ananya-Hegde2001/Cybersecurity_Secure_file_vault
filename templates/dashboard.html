@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Command Center | Secure Vault{% endblock %}
+{% block content %}
+<section class="hero-row">
+  <div><p class="eyebrow">SECURE OPERATIONS / 01</p><h1>Command center<span>.</span></h1><p class="lede">Your private perimeter is active. Every file is sealed before it reaches the disk.</p></div>
+  <div class="hero-meta"><span>SESSION WINDOW</span><strong>{{ stats.session_started }}</strong><small>15 MINUTE IDLE LOCK</small></div>
+</section>
+<section class="metrics-grid">
+  <div class="metric-card posture-card"><div class="metric-label">SECURITY POSTURE <span class="live-dot"></span></div><div class="posture-body"><div class="score-ring" style="--score: {{ stats.security_score * 3.6 }}deg"><strong>{{ stats.security_score }}</strong><span>/ 100</span></div><div><h2>{{ stats.risk.level }} posture</h2><p>{% if stats.risk.factors %}{{ stats.risk.factors[0].action.replace('_', ' ') }} is the top signal{% else %}No active anomalies detected{% endif %}</p><small>LAST CHECK {{ stats.latest_event }}</small></div></div></div>
+  <div class="metric-card"><div class="metric-label">SEALED ASSETS</div><strong class="metric-number">{{ stats.file_count }}</strong><p>Files under AES-256-GCM protection</p><div class="metric-line"><span style="width: {{ [stats.file_count * 12, 100] | min }}%"></span></div></div>
+  <div class="metric-card"><div class="metric-label">VAULT CAPACITY</div><strong class="metric-number">{{ (stats.total_bytes / 1024) | round(1) }}<em> KB</em></strong><p>Encrypted payload currently stored</p><div class="metric-caption">50 MB MAX PER UPLOAD</div></div>
+  <div class="metric-card"><div class="metric-label">AUDIT EVENTS</div><strong class="metric-number">{{ stats.event_count }}</strong><p>{{ stats.failed_events }} flagged event(s) requiring review</p><div class="metric-caption green">TAMPER-EVIDENT JOURNAL</div></div>
+</section>
+<section class="workspace-grid">
+  <div class="card upload-card"><div class="section-heading"><div><p class="eyebrow">SECURE INGEST</p><h2>Drop into the vault</h2></div><span class="encryption-badge">AES <b>256</b> / GCM</span></div><form method="post" action="{{ url_for('vault.upload') }}" enctype="multipart/form-data" class="upload-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="drop-zone" for="file-input"><span class="drop-icon">+</span><strong id="file-label">Choose a file to encrypt</strong><small>Encrypted in memory, then written as an opaque UUID</small><input type="file" id="file-input" name="file" required></label><button type="submit" class="primary-button"><span>Seal file</span><b>↗</b></button></form></div>
+  <div class="card protocol-card"><p class="eyebrow">CRYPTOGRAPHIC PROTOCOL</p><h2>Nothing leaves unsealed.</h2><div class="protocol-row"><span class="protocol-icon">01</span><div><strong>Random nonce</strong><small>Fresh 96-bit nonce per asset</small></div></div><div class="protocol-row"><span class="protocol-icon">02</span><div><strong>Authenticated encryption</strong><small>GCM rejects tampered payloads</small></div></div><div class="protocol-row"><span class="protocol-icon">03</span><div><strong>Owner-bound access</strong><small>Session identity gates every download</small></div></div><div class="sentinel-launch"><div><strong>Vault Sentinel</strong><small>Scan files and the audit chain</small></div><div class="sentinel-actions"><button type="button" id="scan-button">Files <b>↗</b></button><button type="button" id="chain-button">Chain <b>↗</b></button></div></div><div class="scan-output" id="scan-output" aria-live="polite"></div></div>
+</section>
+<section class="lower-grid">
+  <div class="card inventory-card"><div class="section-heading"><div><p class="eyebrow">PRIVATE INVENTORY</p><h2>Sealed assets</h2></div><span class="count-label">{{ stats.file_count }} TOTAL</span></div><form class="inventory-search" method="get" action="{{ url_for('vault.dashboard') }}"><input type="search" name="q" value="{{ search }}" placeholder="Search sealed assets..."><button type="submit" aria-label="Search files">⌕</button>{% if search %}<a href="{{ url_for('vault.dashboard') }}">Clear</a>{% endif %}</form>{% if files %}<div class="file-list">{% for f in files %}<div class="file-row"><span class="file-type">{{ f['original_filename'].split('.')[-1][:4] | upper }}</span><div class="file-info"><strong>{{ f['original_filename'] }}</strong><small>{{ (f['size_bytes'] / 1024) | round(1) }} KB <i>•</i> SHA-256 {{ (f['sha256'] or 'pending')[:12] }}... <i>•</i> ENV v{{ f['encryption_version'] }} / {{ f['key_id'] }}</small></div><span class="sealed-state">SEALED</span><a class="download-button" href="{{ url_for('vault.download', file_id=f['id']) }}" aria-label="Decrypt and download {{ f['original_filename'] }}">↓</a><form class="share-form" method="post" action="{{ url_for('vault.create_share', file_id=f['id']) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><select name="expires_hours" aria-label="Share duration"><option value="1">1H</option><option value="24" selected>24H</option><option value="168">7D</option></select><button class="share-button" type="submit" aria-label="Create secure share for {{ f['original_filename'] }}">↗</button></form><form method="post" action="{{ url_for('vault.delete_file', file_id=f['id']) }}" onsubmit="return confirm('Permanently delete this encrypted asset?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="delete-button" type="submit" aria-label="Delete {{ f['original_filename'] }}">×</button></form></div>{% endfor %}</div>{% else %}<div class="empty-state"><span>{% if search %}⌕{% else %}+{% endif %}</span><p>{% if search %}No sealed assets match “{{ search }}”.{% else %}Your first asset is waiting to be sealed.{% endif %}</p></div>{% endif %}</div>
+  <div class="card activity-card"><div class="section-heading"><div><p class="eyebrow">LIVE AUDIT STREAM</p><h2>Recent activity</h2></div><a class="text-link" href="{{ url_for('vault.audit_log') }}">View all ↗</a></div><div class="activity-list">{% for e in audit_entries %}<div class="activity-row"><span class="activity-marker {% if 'failed' in e['action'] or 'lockout' in e['action'] %}alert{% endif %}"></span><div><strong>{{ e['action'].replace('_', ' ') }}</strong><small>{{ e['filename'] or 'Account event' }} <i>•</i> {{ e['ip_address'] or 'local' }}</small></div><time>{{ e['timestamp'][11:16] }}</time></div>{% else %}<p class="muted">No activity recorded yet.</p>{% endfor %}</div></div>
+</section>
+<div class="seal-overlay" id="seal-overlay" aria-hidden="true">
+  <div class="seal-console">
+    <div class="seal-console-top"><span class="live-dot"></span><span>LIVE CRYPTOGRAPHIC OPERATION</span><span id="seal-percent">00%</span></div>
+    <div class="cipher-orbit"><span class="orbit-core">SV</span><i></i><i></i><i></i><b class="orbit-ring"></b></div>
+    <p class="eyebrow">AES-256-GCM / MEMORY BOUND</p>
+    <h2>Sealing your asset<span>.</span></h2>
+    <p class="seal-file-name" id="seal-file-name">Preparing payload</p>
+    <div class="cipher-preview"><div><span class="preview-label">PLAINTEXT / INPUT</span><pre id="plain-preview">waiting for payload...</pre></div><div class="cipher-arrow">→</div><div><span class="preview-label">CIPHERTEXT / OUTPUT</span><pre id="cipher-preview">awaiting AES-GCM...</pre></div></div>
+    <div class="crypto-telemetry"><div><span>NONCE</span><strong id="nonce-value">waiting</strong></div><div><span>AUTH TAG</span><strong id="tag-value">waiting</strong></div><div><span>ENTROPY</span><strong id="entropy-value">0.00 bits</strong></div></div><p class="preview-note">EPHEMERAL VISUALIZATION KEY <span>•</span> VAULT RE-ENCRYPTS SERVER-SIDE</p>
+    <div class="threat-gate" id="threat-gate"><span>THREAT GATE</span><strong>QUEUED</strong></div>
+    <div class="seal-progress"><span id="seal-progress-bar"></span></div>
+    <div class="seal-steps"><div class="seal-step active" id="step-read"><b>01</b><span>READ PAYLOAD</span><i>●</i></div><div class="seal-step" id="step-nonce"><b>02</b><span>GENERATE NONCE</span><i>●</i></div><div class="seal-step" id="step-encrypt"><b>03</b><span>AUTHENTICATE + SEAL</span><i>●</i></div><div class="seal-step" id="step-store"><b>04</b><span>COMMIT CIPHERTEXT</span><i>●</i></div></div>
+    <p class="seal-status" id="seal-status">Reading plaintext into protected memory...</p>
+  </div>
+</div>
+<script>
+  const input = document.getElementById('file-input');
+  const label = document.getElementById('file-label');
+  const uploadForm = document.querySelector('.upload-form');
+  const dropZone = document.querySelector('.drop-zone');
+  const overlay = document.getElementById('seal-overlay');
+  const sealStatus = document.getElementById('seal-status');
+  const sealBar = document.getElementById('seal-progress-bar');
+  const sealPercent = document.getElementById('seal-percent');
+  const sealFileName = document.getElementById('seal-file-name');
+  const plainPreview = document.getElementById('plain-preview');
+  const cipherPreview = document.getElementById('cipher-preview');
+  const nonceValue = document.getElementById('nonce-value');
+  const tagValue = document.getElementById('tag-value');
+  const entropyValue = document.getElementById('entropy-value');
+  const threatGate = document.getElementById('threat-gate');
+  const toBase64 = (bytes) => btoa(String.fromCharCode(...bytes));
+  let previewCiphertext = '';
+  let previewNonce = '';
+  let previewTag = '';
+  if (input) input.addEventListener('change', async () => {
+    const file = input.files[0];
+    label.textContent = file ? file.name : 'Choose a file to encrypt';
+    if (!file || !window.crypto?.subtle) return;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const previewBytes = bytes.slice(0, 180);
+    plainPreview.textContent = new TextDecoder().decode(previewBytes).replace(/[^\x20-\x7E\n\r\t]/g, '·') || '[binary payload]';
+    const previewKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt']);
+    const generatedNonce = crypto.getRandomValues(new Uint8Array(12));
+    const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: generatedNonce }, previewKey, previewBytes));
+    previewCiphertext = toBase64(encrypted);
+    previewNonce = toBase64(generatedNonce);
+    previewTag = toBase64(encrypted.slice(-16));
+    cipherPreview.textContent = `${previewCiphertext.match(/.{1,32}/g).join('\n')}\n...`;
+    nonceValue.textContent = `${previewNonce.slice(0, 18)}...`;
+    tagValue.textContent = `${previewTag.slice(0, 18)}...`;
+    entropyValue.textContent = '7.98 bits';
+  });
+  if (dropZone) {
+    ['dragenter', 'dragover'].forEach((eventName) => dropZone.addEventListener(eventName, (event) => { event.preventDefault(); dropZone.classList.add('dragging'); }));
+    ['dragleave', 'drop'].forEach((eventName) => dropZone.addEventListener(eventName, (event) => { event.preventDefault(); dropZone.classList.remove('dragging'); }));
+    dropZone.addEventListener('drop', (event) => { if (event.dataTransfer.files.length) { input.files = event.dataTransfer.files; input.dispatchEvent(new Event('change')); } });
+  }
+  if (uploadForm) uploadForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const file = input.files[0];
+    if (!file) return;
+    overlay.classList.add('visible'); overlay.setAttribute('aria-hidden', 'false');
+    sealFileName.textContent = `${file.name} / ${(file.size / 1024).toFixed(1)} KB`;
+    threatGate.className = 'threat-gate scanning'; threatGate.innerHTML = '<span>THREAT GATE</span><strong>SCREENING PAYLOAD <b class="scan-spinner">⟳</b></strong>';
+    const stages = [['step-read', 'Reading plaintext into protected memory...'], ['step-nonce', 'Generating a fresh 96-bit nonce...'], ['step-encrypt', 'Authenticating and sealing with AES-256-GCM...'], ['step-store', 'Committing opaque ciphertext to the vault...']];
+    let stage = 0;
+    const stageDuration = 3200;
+    const stageProgress = [8, 32, 68, 88];
+    const advance = () => { if (stage >= stages.length) return; document.getElementById(stages[stage][0]).classList.add('done'); stage += 1; if (stage < stages.length) { document.getElementById(stages[stage][0]).classList.add('active'); sealStatus.textContent = stages[stage][1]; sealBar.style.width = `${stageProgress[stage]}%`; sealPercent.textContent = `${String(stageProgress[stage]).padStart(2, '0')}%`; } };
+    const stageTimer = setInterval(advance, stageDuration);
+    let transformFrame = 0;
+    const transformTimer = setInterval(() => { if (stage >= 1 && stage < 3) { const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/'; const noise = Array.from({ length: Math.min(previewCiphertext.length || 96, 180) }, (_, index) => index % 5 === transformFrame % 5 ? alphabet[Math.floor(Math.random() * alphabet.length)] : (previewCiphertext[index] || alphabet[index % alphabet.length])); cipherPreview.textContent = `${noise.join('').match(/.{1,32}/g).join('\n')}\n...`; transformFrame += 1; entropyValue.textContent = `${(7.1 + Math.random() * .88).toFixed(2)} bits`; } else if (stage >= 3 && previewCiphertext) { cipherPreview.textContent = `${previewCiphertext.match(/.{1,32}/g).join('\n')}\n...`; entropyValue.textContent = '8.00 bits'; } }, 90);
+    let visualProgress = 4;
+    const visualTimer = setInterval(() => { if (visualProgress < 88) { visualProgress += .7; sealBar.style.width = `${visualProgress}%`; sealPercent.textContent = `${String(Math.floor(visualProgress)).padStart(2, '0')}%`; } }, 50);
+    const xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener('progress', (progress) => { if (progress.lengthComputable) { const value = Math.max(88, Math.round(88 + (progress.loaded / progress.total * 10))); visualProgress = Math.max(visualProgress, value); sealBar.style.width = `${value}%`; sealPercent.textContent = `${String(value).padStart(2, '0')}%`; } });
+    xhr.addEventListener('load', () => { clearInterval(stageTimer); clearInterval(visualTimer); clearInterval(transformTimer); if (xhr.status >= 400) { const failure = JSON.parse(xhr.responseText); threatGate.className = 'threat-gate blocked'; threatGate.innerHTML = `<span>THREAT GATE</span><strong>${failure.error}</strong>`; sealStatus.textContent = failure.report.findings[0].message; sealBar.style.width = '100%'; sealPercent.textContent = 'BLOCKED'; return; } threatGate.className = 'threat-gate clear'; threatGate.innerHTML = '<span>THREAT GATE</span><strong>PAYLOAD CLEAR ✓</strong>'; sealBar.style.width = '100%'; sealPercent.textContent = '100%'; stages.forEach((item) => document.getElementById(item[0]).classList.add('done')); sealStatus.textContent = 'Seal verified. Redirecting to your protected inventory...'; setTimeout(() => { window.location.href = xhr.responseURL || '/'; }, 900); });
+    xhr.addEventListener('error', () => { clearInterval(stageTimer); clearInterval(visualTimer); clearInterval(transformTimer); overlay.classList.remove('visible'); alert('The secure upload could not be completed.'); });
+    xhr.open('POST', uploadForm.action); xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    setTimeout(() => xhr.send(new FormData(uploadForm)), stageDuration * stages.length);
+  });
+  const scanButton = document.getElementById('scan-button');
+  const scanOutput = document.getElementById('scan-output');
+  if (scanButton) scanButton.addEventListener('click', async () => {
+    scanButton.disabled = true; scanButton.innerHTML = 'Scanning <b class="scan-spinner">⟳</b>'; scanOutput.innerHTML = '<p class="scan-running">Initializing authenticated vault scan...</p>';
+    const response = await fetch('/api/integrity-scan', { method: 'POST', headers: { 'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value } });
+    const report = await response.json();
+    scanOutput.innerHTML = report.results.map((item, index) => `<div class="scan-result" style="--delay: ${index * 90}ms"><span class="scan-status ${item.status === 'VERIFIED' ? 'verified' : 'failed'}">${item.status === 'VERIFIED' ? '✓' : '!'}</span><div><strong>${item.filename}</strong><small>${item.detail}</small></div></div>`).join('') || '<p class="scan-running">No assets to scan.</p>';
+    scanButton.disabled = false; scanButton.innerHTML = report.failures ? `${report.failures} alert(s) <b>!</b>` : 'Scan verified <b>✓</b>';
+  });
+  const chainButton = document.getElementById('chain-button');
+  if (chainButton) chainButton.addEventListener('click', async () => {
+    chainButton.disabled = true; chainButton.innerHTML = 'Checking <b class="scan-spinner">⟳</b>';
+    const response = await fetch('/api/audit-integrity', { method: 'POST', headers: { 'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value } });
+    const report = await response.json();
+    scanOutput.innerHTML = `<div class="scan-result"><span class="scan-status ${report.valid ? 'verified' : 'failed'}">${report.valid ? '✓' : '!'}</span><div><strong>${report.valid ? 'AUDIT CHAIN VERIFIED' : `CHAIN BREAK AT ENTRY ${report.broken_entry}`}</strong><small>${report.valid ? 'Every journal event links to the next with SHA-256.' : 'The audit journal requires incident review.'}</small></div></div>`;
+    chainButton.disabled = false; chainButton.innerHTML = report.valid ? 'Chain verified <b>✓</b>' : 'Chain alert <b>!</b>';
+  });
+</script>
+{% endblock %}
